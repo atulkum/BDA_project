@@ -107,16 +107,29 @@ for (i in 1:M) {
 rownames(df_all)<-NULL
 ```
 
+
+
 ```{r}
-J = 20
-n_choices = 171
-b[1:J] = 0
-b = matrix(0L, nrow = J, ncol = n_choices)
+J <- 50
+n_choices <- 171
+M_draw <- 4000
+b <- matrix(0L, nrow = J, ncol = n_choices)
+r <- matrix(as.numeric(unlist(df_all)),nrow=nrow(df_all)) #999 171
 for (k in 1:n_choices){
   for (m in 1:M){
-    ++b[1 + floor(r[n,m] * J / (M + 1)), k]
+    idx <- 1 + floor(r[m, k] * J / (M_draw + 1))
+    if (idx > J){
+      print(idx, r[m, k])
+    }
+    b[idx, k] <- 1 + b[idx, k]
   }
 }
 ```
 
-
+```{r}
+for (k in 1:n_choices){
+  ej = (M_draw + 1)/J
+  chi_square_value = floor(sum((b[, 1] - ej)^2/ej))
+  print(pchisq(chi_square_value, df=J-1, lower.tail=FALSE))
+}
+```

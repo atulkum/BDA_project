@@ -1,0 +1,122 @@
+---
+title: "BDA - Assignment 9"
+author: "Anonymous"
+output: 
+  pdf_document: 
+    toc: yes
+    toc_depth: 1
+---
+
+```{r}
+library(dplyr) # Data manipulation
+library(purrr) # List manipulation
+library(ggplot2) # Nice plots
+#library(extraDistr) # More distributions
+#library(rcorpora) # Get random words
+library(posterior)
+library(cmdstanr) # Lightweight Stan interface
+library(bayesplot) # Nice Bayesian plots
+```
+
+```{r}
+movie_names <- read.csv(file = 'movie_name2id.tsv', sep='\t')
+head(movie_names)
+```
+
+```{r}
+netflix_data <- read.csv(file = 'ranking_data.csv')
+head(netflix_data)
+```
+
+```{r}
+ldata <- list(res = as.matrix(netflix_data %>% select(starts_with("rank"))),
+              weights = netflix_data$count, 
+              N_options = nrow(movie_names), 
+              N_ranked = ncol(netflix_data)-1, 
+              N_ranking = nrow(netflix_data)) 
+```
+
+```{r}
+#m_expl <- cmdstan_model("./weighted_exploded.stan")
+
+#f_exploded <- m_expl$sample(
+#  data = ldata,
+#  seed = 42,
+#  parallel_chains = 4
+#)
+```
+
+```{r}
+f_exploded
+```
+
+
+```{r}
+saveRDS(f_exploded, file = "f_exploded.RDS")
+f_exploded <- readRDS("f_exploded.RDS")
+```
+
+```{r}
+#theta_draws_df <- as_draws_df(f_exploded$draws("Theta")) %>% select(starts_with("Theta"))
+
+#sorted_movie_id <- order(colMeans(theta_draws_df), decreasing = TRUE)
+#movie_names[sorted_movie_id[1:10],]
+
+#theta_summary <- as.data.frame(f_exploded$summary("Theta"))
+
+movie_rankings = data.frame(
+  by_mean = movie_names[order(theta_summary$mean, decreasing = TRUE)[1:10],"movie_name"],
+  by_median = movie_names[order(theta_summary$median, decreasing = TRUE)[1:10],"movie_name"],
+  by_mad = movie_names[order(theta_summary$mad, decreasing = TRUE)[1:10],"movie_name"],
+  by_p95 = movie_names[order(theta_summary$q95, decreasing = TRUE)[1:10],"movie_name"]
+)
+movie_rankings
+```
+
+
+```{r}
+hist(theta_draws_df[,'Theta[113]']$`Theta[113]`)
+
+```
+
+## SBC 
+```{r}
+df_all = NULL
+M = 999
+for (i in 1:M) { 
+  data_sim <- list(
+                N_options = nrow(movie_names), 
+                N_ranked = ncol(netflix_data)-1, 
+                N_ranking = 10) 
+  
+  
+  m_expl_sim <- cmdstan_model("./weighted_exploded_scb.stan")
+  
+  f_exploded_sim <- m_expl_sim$sample(
+    data = data_sim,
+    parallel_chains = 4,
+    refresh = 0
+  )
+  rank_stat_df <- as_draws_df(f_exploded_sim$draws("ranks_")) %>% select(starts_with("ranks_"))
+  if (i == 1){
+    df_all <- colSums(rank_stat_df)
+  } else {
+    df_all <- rbind(df_all, i=colSums(rank_stat_df))
+  }
+}
+rownames(df_all)<-NULL
+```
+
+```{r}
+J = 20
+n_choices = 171
+b[1:J] = 0
+b = matrix(0L, nrow = J, ncol = n_choices)
+for (k in 1:n_choices){
+  for (m in 1:M){
+    ++b[1 + floor(r[n,m] * J / (M + 1)), k]
+  }
+}
+```
+
+
